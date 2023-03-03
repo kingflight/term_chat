@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+import os
+import sys
+import json
+import requests
+import time
+
+# the directory to save chats
+chat_dir = os.getenv("HOME") + "/.chat/"
+API_KEY="<YOUR_API_KEY>"
+model="gpt-3.5-turbo"
+
+def send_request(messages):
+    headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+API_KEY }
+    data = { "model": model, "messages": messages , "max_tokens": 2000, "temperature": 0.7 }
+    try:
+        response = requests.post('https://api.openai.com/v1/chat/completions', headers=headers, json=data)
+        response_content = response.json()["choices"][0]["message"]["content"]
+        return response_content
+    except requests.exceptions.HTTPError as error:
+        print(f"HTTP error occurred: {error}")
+    except requests.exceptions.RequestException as error:
+        print(f"An error occurred: {error}")
+
+
+# update message and save it to a file for further chat
+def save_chat(messages, chat_file):
+    if not os.path.isdir(chat_dir):
+        os.system("mkdir " + chat_dir)
+
+    # if new chat, create ne chat file
+    if not chat_file:
+        chat_file = chat_dir+str(int(time.time()))
+
+    with open(chat_file, "w") as f:
+        #print("saving chat into file", chat_file)
+        #print(messages)
+        f.write(json.dumps(messages))
+
+
+def parse_args():
+    import argparse
+    parser = argparse.ArgumentParser(description='Chat with GPT-3.5 in command line')
+    parser.add_argument('-c', '--continue', dest="cont", action="store_true", help='continue the last chat')
+    parser.add_argument('-s', '--select', dest="select", nargs=1, default=0, help='continue the selected chat')
+    parser.add_argument('-l', '--list', dest="list", action="store_true", help='list all saved chats')
+    parser.add_argument('content', nargs='*', help='chat content')
+    args = parser.parse_args()
+    return args
+
+def list_chats():
+    from termcolor import colored
+    chats = sorted(os.listdir(chat_dir))
+    for chat in chats:
+        chat_file = chat_dir + chat
+        print(colored(chat_file, "red"))
+        with open(chat_file, "r") as f:
+            chat_structs = json.load(f)
+            for item in chat_structs:
+                print(f"{item['role']:>10}: {item['content']}")
+        print()
+
+def prepare_chat():
+    chat_file = None
+    messages = [{"role": "system", "content": "You are a helpful assistant."}]
+
+    args = parse_args()
+    if args.list:
+        list_chats()
+        exit(0)
+
+    question = " ".join(args.content)
+    if args.select:
+        chat_filename = " ".join(args.select)
+        if os.path.isfile(chat_filename):
+            chat_file = chat_filename
+        elif os.path.isfile(chat_dir + chat_filename):
+            chat_file = chat_dir + chat_filename
+        else:
+            print("the selected chat " + chat_filename + " does not exist.")
+            exit(1)
+        with open(chat_file, "r") as f:
+            messages = json.load(f)
+    elif args.cont:
+        chats = os.listdir(chat_dir)
+        if not chats:
+            print("no previous chat. starting a new one.")
+        else:
+            last_chat = sorted(chats)[-1]
+            chat_file = chat_dir + last_chat
+            print("continuing chat: " + chat_file)
+            with open(chat_file, "r") as f:
+                messages = json.load(f)
+
+    messages.append({"role": "user", "content": question})
+    return messages, chat_file
+
+# send request
+messages, chat_file = prepare_chat()
+response_content = send_request(messages)
+print(response_content)
+
+# save chat
+messages.append({"role": "assistant", "content": response_content})
+save_chat(messages, chat_file)
+
+
