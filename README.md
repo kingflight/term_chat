@@ -6,7 +6,7 @@
 
 ## Setup
 1. clone this repo and `cd` into it.
-2. replace the `API_KEY` with your own in the `chat` file.
+2. replace the `API_KEY` with your own in the `chat` file. [To create an openai API_KEY](https://platform.openai.com/docs/quickstart/build-your-application)
 3. run `chmod +x ./chat`
 4. run `./chat would you tell me a joke?`
 
